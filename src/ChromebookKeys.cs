@@ -11,7 +11,7 @@ internal static class ChromebookKeys
     delegate IntPtr Hook(int code, IntPtr message, IntPtr data);
     static readonly Hook callback = OnKey;
     static IntPtr hook;
-    static bool enabled = true, search, searchUsed, forwardedWin;
+    static bool enabled = true, search, searchUsed, forwardedWin, languageKeyDown;
     static readonly bool[] consumed = new bool[256];
     [StructLayout(LayoutKind.Sequential)] struct Key { public uint vk, scan, flags, time; public UIntPtr extra; }
     [StructLayout(LayoutKind.Sequential)] struct Input { public uint type; public InputUnion data; }
@@ -27,6 +27,29 @@ internal static class ChromebookKeys
     [DllImport("kernel32.dll", CharSet=CharSet.Auto)] static extern IntPtr GetModuleHandle(string name);
     [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint count, Input[] input, int size);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr process);
+    [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr LoadKeyboardLayout(string layout,uint flags);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr window,uint message,IntPtr w,IntPtr l);
+    static void ToggleJapanese() {
+        IntPtr window=GetForegroundWindow();
+        uint thread=GetWindowThreadProcessId(window,IntPtr.Zero);
+        if((GetKeyboardLayout(thread).ToInt64() & 0xffff)==0x0411) {
+            Tap(0x19); // VK_KANJI toggles Japanese IME on/off.
+            return;
+        }
+        IntPtr japanese=LoadKeyboardLayout("00000411",0);
+        if(japanese==IntPtr.Zero) {WriteStatus("Japanese input is unavailable; install Microsoft Japanese IME");return;}
+        PostMessage(window,0x50,IntPtr.Zero,japanese);
+        var timer=new System.Windows.Forms.Timer { Interval=200 };
+        timer.Tick+=delegate {
+            timer.Stop();timer.Dispose();
+            // Never inject into another application if focus changed meanwhile.
+            if(GetForegroundWindow()==window) Tap(0x16); // VK_IME_ON
+        };
+        timer.Start();
+    }
     static bool Held(int key) { return GetAsyncKeyState(key) < 0; }
     static void Send(int key, bool up) {
         var input = new Input { type=1, data=new InputUnion { keyboard=new KeyboardInput { vk=(ushort)key, flags=up?2u:0u } } };
@@ -66,6 +89,12 @@ internal static class ChromebookKeys
         if((k.flags&16)!=0) return CallNextHookEx(hook,code,msg,ptr);
         bool up=(k.flags&128)!=0;
         int vk=(int)k.vk;
+        // Physical JIS half/full-width key below Esc. US layouts label scan 0x29 as punctuation.
+        if(k.scan==0x29 && (k.flags&1)==0 && (languageKeyDown || (!Held(0x12) && !Held(0x11) && !Held(0x10) && !search))) {
+            if(up) languageKeyDown=false;
+            else if(!languageKeyDown) {languageKeyDown=true;ToggleJapanese();}
+            return new IntPtr(1);
+        }
         if(vk==0x5B || vk==0x5C) {
             if(!up) { if(!search) {search=true;searchUsed=false;forwardedWin=false;} }
             else {

@@ -5,8 +5,8 @@ A small Windows tray utility that maps the **Lenovo 14e Chromebook Gen 3
 it does not install a kernel driver or require Windows test mode.
 
 This is an early preview. The executable has compiled and started successfully
-on the target Windows laptop. Physical-key and Japanese IME validation are
-still pending; broad Chromebook compatibility is not established.
+on the target Windows laptop, and the owner has confirmed that the Japanese
+input-switch key works. Broad Chromebook compatibility is not established.
 
 ## Key mapping
 
@@ -22,6 +22,7 @@ still pending; broad Chromebook compatibility is not established.
 | Search / Launcher | Open Windows Start |
 | Search + F1–F10 | Send the ordinary function key |
 | Alt + Search | Toggle Caps Lock |
+| 半角/全角 below Esc (Japanese keyboard) | Select Japanese IME, then toggle Japanese/Latin input |
 
 The main mapping uses the F1–F10 events emitted by the Chromebook's firmware.
 Several extended Vivaldi scan codes are also supported. Search plus a top-row
@@ -58,11 +59,19 @@ installation and startup entry.
 
 ## Japanese keyboards
 
-The helper does **not** configure Japanese text input. For a Japanese keyboard,
-add Japanese/Microsoft IME in Windows Settings and select the Japanese
-106/109 hardware layout. With Japanese IME active, the 半角/全角 key above Tab
-switches between Latin and Japanese input. The hardware-layout change can
-require a restart. English Windows display language can be retained.
+Install Japanese/Microsoft IME and its **Basic typing** feature in Windows
+Settings. For a Japanese keyboard, also select the Japanese 106/109 hardware
+layout. The helper does not install language packages or change the hardware
+layout; the hardware-layout change can require a restart. English Windows
+display language can be retained.
+
+The unmodified physical key below Esc (scan code 0x29) is intercepted so it
+does not insert punctuation while the English input layout is selected.
+From another language, it selects Japanese and requests IME on. When Japanese
+is already selected, it sends the Kanji key to toggle the IME. Choose Hiragana
+(あ) in Microsoft IME for ordinary romaji-to-Japanese typing. Modified shortcuts
+pass through. This mapping also affects the corresponding key on external US
+keyboards; pause the helper when literal backtick input is needed.
 
 Machine-specific setup scripts, registry backups, crash dumps, and personal
 diagnostics are deliberately excluded from this repository and download.
